@@ -479,11 +479,11 @@ MojErr BusClient::open()
 	// If we're not launched as a service, then we're launching at boot,
 	// which means we should run all the configurators.
 	if (!m_launchedAsService) {
-		MojLogDebug(m_log, "Not run as dynamic service - run startup configurations");
+		MojLogInfo(m_log, "Not run as dynamic service - run startup configurations");
 		Run(DBKINDS | DBPERMISSIONS | FILECACHE | ACTIVITIES);
 		RunNextConfigurator();
 	} else {
-		MojLogDebug(m_log, "launched as service");
+		MojLogInfo(m_log, "launched as service");
 
 		m_methods.reset(new BusMethods(*this, m_log));
 		MojAllocCheck(m_methods.get());
@@ -601,7 +601,7 @@ void BusClient::ScanDir(const MojString& _id, Configurator::RunType scanType, co
 void BusClient::Scan(ConfigurationMode confmode, const MojString &appId, PackageType type, PackageLocation location)
 {
 	MojLogTrace(m_log);
-	MojLogDebug(m_log, "Scanning %s %d@%d", appId.data(), type, location);
+	MojLogInfo(m_log, "Scanning %s %d@%d", appId.data(), type, location);
 	std::string confPath = appConfDir(appId, type, location);
 	Configurator::RunType mode = Configurator::Configure;
 	switch (confmode) {
@@ -641,7 +641,7 @@ gboolean BusClient::IterateConfiguratorsCallback(gpointer data)
 
 	if (client->m_configuratorsCompleted == client->m_configurators.size()) {
 		if (!client->m_shuttingDown) {
-			MojLogDebug(client->m_log, "No more configurators left (%d configurations completed, %d configurations failed), shutting down.", Configurator::ConfigureOk().size(), Configurator::ConfigureFailure().size());
+			MojLogNotice(client->m_log, "No more configurators left (%d configurations completed, %d configurations failed), shutting down.", Configurator::ConfigureOk().size(), Configurator::ConfigureFailure().size());
 			client->ScheduleShutdown();
 			return client->m_msg.get() != NULL;
 		}
