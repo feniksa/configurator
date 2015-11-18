@@ -154,12 +154,11 @@ private:
 
 	void ConfiguratorComplete(ConfiguratorCollection::iterator configurator);
 
-	MojLogger					 m_log;
-	MojLunaService				 m_service;
-	MojDbServiceClient			 m_dbClient;
-	MojDbServiceClient			 m_tempDbClient;
-	ConfiguratorCollection m_configurators;
-	size_t m_configuratorsCompleted;
+	MojLogger					m_log;
+	MojLunaService				m_service;
+	MojDbServiceClient			m_dbClient;
+	ConfiguratorCollection 		m_configurators;
+	size_t 						m_configuratorsCompleted;
 	MojRefCountedPtr<BusMethods> m_methods;
 	bool						 m_launchedAsService;
 	MojRefCountedPtr<MojServiceMessage> m_msg;
