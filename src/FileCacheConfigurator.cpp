@@ -29,7 +29,8 @@ const char* const FileCacheConfigurator::FILECACHE_TYPENAME_KEY = "typeName";
 
 static bool endsWith(const std::string& str, const std::string &suffix)
 {
-    return str.length() >= suffix.length() && string::npos != str.rfind(suffix, str.length() - suffix.length());
+	size_t toSearch = str.length() - suffix.length();
+	return toSearch >= 0 && string::npos != str.rfind(suffix, toSearch);
 }
 
 class FileCacheConfiguratorResponse : public ConfiguratorCallback {
@@ -69,9 +70,9 @@ public:
 	MojErr Response(MojObject& response, MojErr err)
 	{
 		bool success = true;
-        bool getSuccess = response.get("returnValue", success);
+		response.get("returnValue", success);
 
-		if (err || !getSuccess || !success) {
+		if (err || !success) {
 			// unfortunately file cache doesn't use regular C++ mojo error codes
 			// & more unfortunately all the various failure reasons for define are hidden
 			// behind 1 error code

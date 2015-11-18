@@ -81,8 +81,7 @@ MojErr DbKindConfigurator::CheckOwner(const std::string& filePath, MojObject &pa
 		} else {
 			LOG_DEBUG("setting owner for %s (%s)", filePath.c_str(), ownerid.c_str());
 		}
-        MojErr err = params.putString("owner", ownerid.c_str());
-        MojErrCheck(err);
+		params.putString("owner", ownerid.c_str());
 	} else {
 		// todo - return error once we disallow deprecated usage
 		// an owner should always be available as a property of the filePath

@@ -50,8 +50,7 @@ ConfiguratorCallback::ConfiguratorCallback(Configurator* configurator, const std
 	  m_handler(configurator),
 	  m_delegateInvoked(false),
 	  m_unconfigure(false),
-	  m_configure(false),
-      m_defaultCacheBehaviourUsed(false)
+	  m_configure(false)
 {
 	assert(m_handler.get() != NULL);
 }
@@ -149,8 +148,7 @@ Configurator::Configurator(const string& id, ConfigType confType, RunType type, 
   m_currentType(type),
   m_completed(false),
 	m_configDir(configDirectory),
-	m_scanned(false),
-    m_emptyConfigurator(false)
+	m_scanned(false)
 {
 	InitCacheDir();
 }
