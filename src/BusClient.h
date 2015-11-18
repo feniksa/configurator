@@ -110,8 +110,6 @@ private:
 	static const char* const OLD_DB_KIND_DIR; //deprecated
 	static const char* const DB_KIND_DIR;
 	static const char* const DB_PERMISSIONS_DIR;
-    static const char* const MEDIADB_KIND_DIR;
-    static const char* const MEDIADB_PERMISSIONS_DIR;
 	static const char* const TEMPDB_KIND_DIR;
 	static const char* const TEMPDB_PERMISSIONS_DIR;
 	static const char* const FILE_CACHE_CONFIG_DIR;
@@ -159,8 +157,7 @@ private:
 	MojLogger					 m_log;
 	MojLunaService				 m_service;
 	MojDbServiceClient			 m_dbClient;
-	MojDbServiceClient			 m_mediaDbClient;
-    MojDbServiceClient           m_tempDbClient;
+	MojDbServiceClient			 m_tempDbClient;
 	ConfiguratorCollection m_configurators;
 	size_t m_configuratorsCompleted;
 	MojRefCountedPtr<BusMethods> m_methods;
