@@ -89,28 +89,23 @@ public:
 					errorText = mojErrorText.data();
 
 					if (endsWith(errorText, nakOkSuffix)) {
-						LOG_DEBUG("caching negative response for %s", m_config.c_str());
+						MojLogDebug(Logger(), "caching negative response for %s", m_config.c_str());
 						bool found = false;
 						response.del("errorCode", found);
 						response.del("errorText", found);
 						err = response.putBool("returnValue", true);
 						MarkConfigured();
 					} else {
-						LOG_WARNING(MSGID_FILE_CACHE_CONFIG_WARNING, 2,
-								PMLOGKS("error", errorText.c_str()),
-								PMLOGKS("suffix", nakOkSuffix.c_str()),
-								"File cache failed to register type (`%s' doesn't end with `%s'", errorText.c_str(), nakOkSuffix.c_str());
+						MojLogWarning(Logger(), "File cache failed to register type (`%s' doesn't end with `%s'", errorText.c_str(), nakOkSuffix.c_str());
 					}
 				} else {
-					LOG_WARNING(MSGID_FILE_CACHE_CONFIG_WARNING, 1,
-							PMLOGKS("error", (int)errorCode),
-							"Unrecognized errorCode %d", (int)errorCode);
+					MojLogWarning(Logger(), "Unrecognized errorCode %d", (int)errorCode);
 				}
 			} else {
-				LOG_WARNING(MSGID_FILE_CACHE_CONFIG_WARNING, 0, "errorCode not provided in request failure");
+				MojLogWarning(Logger(), "errorCode not provided in request failure");
 			}
 		} else {
-			LOG_DEBUG("FileCacheConfigurator response for %s contained no problems", m_config.c_str());
+			MojLogDebug(Logger(), "FileCacheConfigurator response for %s contained no problems", m_config.c_str());
 		}
 		return DelegateResponse(response, err);
 	}
@@ -144,14 +139,14 @@ ConfiguratorCallback* FileCacheConfigurator::CreateCallback(const string& filePa
 
 MojErr FileCacheConfigurator::ProcessConfig(const string& filePath, MojObject& params)
 {
-	LOG_TRACE("Entering function %s", __FUNCTION__);
+	MojLogTrace(m_log);
 
 	return m_busClient.CreateRequest()->send(CreateCallback(filePath)->m_slot, FILECACHE_BUS_ADDRESS, FILECACHE_DEFINETYPE_METHOD, params);
 }
 
 MojErr FileCacheConfigurator::ProcessConfigRemoval(const string& filePath, MojObject& params)
 {
-	LOG_TRACE("Entering function %s", __FUNCTION__);
+	MojLogTrace(m_log);
 	MojErr err;
 
 	MojString typeName;

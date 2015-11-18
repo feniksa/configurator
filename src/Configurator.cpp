@@ -57,6 +57,7 @@ ConfiguratorCallback::ConfiguratorCallback(Configurator* configurator, const std
 
 ConfiguratorCallback::~ConfiguratorCallback()
 {
+//	MojLogDebug(Logger(), "Destroying configurator callback %p", this);
 }
 
 MojErr ConfiguratorCallback::DelegateResponse(MojObject& response, MojErr err)
@@ -66,6 +67,11 @@ MojErr ConfiguratorCallback::DelegateResponse(MojObject& response, MojErr err)
 	m_delegateInvoked = true;
 	m_defaultCacheBehaviourUsed = false;
 	return m_handler->BusResponseAsync(m_config, response, err, &m_defaultCacheBehaviourUsed);
+}
+
+MojLogger& ConfiguratorCallback::Logger()
+{
+	return m_handler->m_log;
 }
 
 void ConfiguratorCallback::MarkConfigured()
@@ -97,10 +103,10 @@ MojErr ConfiguratorCallback::ResponseWrapper(MojObject &response, MojErr err)
 
 	if (!m_defaultCacheBehaviourUsed) {
 		if (m_unconfigure) {
-			LOG_DEBUG("Unmarking %s as configured", m_config.c_str());
+			MojLogDebug(Logger(), "Unmarking %s as configured", m_config.c_str());
 			m_handler->UnmarkConfigured(m_config);
 		} else if (m_configure) {
-			LOG_DEBUG("Marking %s as configured", m_config.c_str());
+			MojLogDebug(Logger(), "Marking %s as configured", m_config.c_str());
 			m_handler->MarkConfigured(m_config);
 		}
 	}
@@ -142,7 +148,8 @@ const Configurator::ConfigCollection& Configurator::ConfigureFailure()
 }
 
 Configurator::Configurator(const string& id, ConfigType confType, RunType type, BusClient& busClient, const string& configDirectory)
-: m_busClient(busClient),
+: m_log(busClient.GetLogger()),
+  m_busClient(busClient),
   m_id(id),
 	m_confType(confType),
   m_currentType(type),
@@ -155,7 +162,7 @@ Configurator::Configurator(const string& id, ConfigType confType, RunType type, 
 
 Configurator::~Configurator()
 {
-	LOG_DEBUG("Destroying configurator %p", this);
+	MojLogDebug(m_log, "Destroying configurator %p", this);
 }
 
 ConfiguratorCallback* Configurator::CreateCallback(const std::string &filePath)
@@ -165,6 +172,7 @@ ConfiguratorCallback* Configurator::CreateCallback(const std::string &filePath)
 
 void Configurator::InitCacheDir() const
 {
+	MojLogTrace(m_log);
 	MojMkDir(kCacheDir, kCacheDirPerms);
 	MojMkDir(kConfCacheDir, kCacheStampPerm);
 }
@@ -172,7 +180,7 @@ void Configurator::InitCacheDir() const
 bool Configurator::IsAlreadyConfigured(const std::string& confFile) const
 {
 	if (!this->CanCacheConfiguratorStatus(confFile)) {
-		LOG_DEBUG("Configurator ignores caching - returning false");
+		MojLogDebug(m_log, "Configurator ignores caching - returning false");
 		return false;
 	}
 
@@ -185,7 +193,7 @@ bool Configurator::IsAlreadyConfigured(const std::string& confFile) const
 	if (MojErrNone != MojStat(confFile.c_str(), &confInfo))
 		return false;
 
-	LOG_DEBUG("%s may already be configured - %s exists", confFile.c_str(), stamp.c_str());
+	MojLogDebug(m_log, "%s may already be configured - %s exists", confFile.c_str(), stamp.c_str());
 	return stampInfo.st_mtime >= confInfo.st_mtime;
 }
 
@@ -194,7 +202,7 @@ void Configurator::MarkConfigured(const std::string &confFile) const
 	if (!CanCacheConfiguratorStatus(confFile))
 		return;
 
-	LOG_DEBUG("Attempting to mark '%s' as configured", confFile.c_str());
+	MojLogDebug(m_log, "Attempting to mark '%s' as configured", confFile.c_str());
 
 	MojStatT confFileInfo;
 	MojErr err;
@@ -219,9 +227,7 @@ void Configurator::MarkConfigured(const std::string &confFile) const
 
 //		MojLogDebug(m_log, "Inheriting timestamp of %d s, %d ms", (int)inherited[1].tv_sec, (int)inherited[1].tv_msec);
 	} else {
-		LOG_WARNING(MSG_CONFIGURATOR_WARNING, 1,
-				PMLOGKS("error", strerror(errno)),
-				"Using current time as timestamp - couldn't get timestamp of conf file (%s)", strerror(errno));
+		MojLogWarning(m_log, "Using current time as timestamp - couldn't get timestamp of conf file (%s)", strerror(errno));
 		times = NULL;
 	}
 
@@ -236,14 +242,12 @@ void Configurator::MarkConfigured(const std::string &confFile) const
 	if (-1 == futimes(stampFd, times)) {
 		// fall through to close()
 		unlink(stamp.c_str());
-		LOG_ERROR(MSGID_CONFIGURATOR_ERROR, 2,
-				PMLOGKS("file", confFile.c_str())),
-				PMLOGKS("error", strerror(errno)),
-				"Failed to create configured stamp for %s (timestamp change failed: %s)", confFile.c_str(), strerror(errno));
+		MojLogError(m_log, "Failed to create configured stamp for %s (timestamp change failed: %s)", confFile.c_str(), strerror(errno));
 	} else {
-		LOG_DEBUG("'%s' marked as configured (stamp '%s' created)", confFile.c_str(), stamp.c_str());
+		MojLogDebug(m_log, "'%s' marked as configured (stamp '%s' created)", confFile.c_str(), stamp.c_str());
 	}
 
+	close(stampFd);
 #else
 	struct timespec *times;
 	struct timespec inherited[2];
@@ -258,9 +262,7 @@ void Configurator::MarkConfigured(const std::string &confFile) const
 
 //		MojLogDebug(m_log, "Inheriting timestamp of %d s, %d ns", (int)inherited[1].tv_sec, (int)inherited[1].tv_nsec);
 	} else {
-		LOG_WARNING(MSGID_CONFIGURATOR_WARNING, 1,
-				PMLOGKS("error", strerror(errno)),
-				"Using current time as timestamp - couldn't get timestamp of conf file (%s)", strerror(errno));
+		MojLogWarning(m_log, "Using current time as timestamp - couldn't get timestamp of conf file (%s)", strerror(errno));
 		times = NULL;
 	}
 
@@ -268,22 +270,16 @@ void Configurator::MarkConfigured(const std::string &confFile) const
 
 	int stampFd = open(stamp.c_str(), O_CREAT | O_WRONLY | O_NOATIME, kCacheStampPerm);
 	if (stampFd == -1) {
-		LOG_ERROR(MSGID_CONFIGURATOR_ERROR, 2,
-				PMLOGKS("file", confFile.c_str()),
-				PMLOGKS("error", strerror(errno)),
-				"Failed to mark %s as configured: %s", confFile.c_str(), strerror(errno));
+		MojLogError(m_log, "Failed to mark %s as configured: %s", confFile.c_str(), strerror(errno));
 		return;
 	}
 
 	if (-1 == futimens(stampFd, times)) {
 		// fall through to close()
 		unlink(stamp.c_str());
-		LOG_ERROR(MSGID_CONFIGURATOR_ERROR, 2,
-				PMLOGKS("file", confFile.c_str()),
-				PMLOGKS("error", strerror(errno)),
-				"Failed to create configured stamp for %s (timestamp change failed: %s)", confFile.c_str(), strerror(errno));
+		MojLogError(m_log, "Failed to create configured stamp for %s (timestamp change failed: %s)", confFile.c_str(), strerror(errno));
 	} else {
-		LOG_DEBUG("'%s' marked as configured (stamp '%s' created)", confFile.c_str(), stamp.c_str());
+		MojLogDebug(m_log, "'%s' marked as configured (stamp '%s' created)", confFile.c_str(), stamp.c_str());
 	}
 
 	close(stampFd);
@@ -298,14 +294,11 @@ void Configurator::UnmarkConfigured(const std::string &confFile) const
 	string stamp = kConfCacheDir + Replace(confFile, "/", "_");
 	if (unlink(stamp.c_str()) == 0)
     {
-		LOG_DEBUG("removed configured stamp for '%s'", confFile.c_str());
+		MojLogDebug(m_log, "removed configured stamp for '%s'", confFile.c_str());
     }
 	else
     {
-		LOG_WARNING(MSGID_CONFIGURATOR_WARNING, 2,
-				PMLOGKS("file", confFile.c_str()),
-				PMLOGKS("stamp", stamp.c_str()),
-				"failed to remove configured stamp for '%s' ('%s')", confFile.c_str(), stamp.c_str());
+		MojLogWarning(m_log, "failed to remove configured stamp for '%s' ('%s')", confFile.c_str(), stamp.c_str());
     }
 }
 
@@ -319,19 +312,19 @@ const std::string& Configurator::ParentId(const std::string& filePath) const
 
 bool Configurator::CanCacheConfiguratorStatus(const std::string &) const
 {
-	LOG_TRACE("Entering function %s", __FUNCTION__);
+	MojLogTrace(m_log);
 	return true;
 }
 
 bool Configurator::Run()
 {
-	LOG_TRACE("Entering function %s", __FUNCTION__);
+	MojLogTrace(m_log);
 
 	if (!m_scanned) {
         bool folderFound = GetConfigFiles("", m_configDir);
 		if (m_configs.empty()) {
             if (folderFound) // Prevents double logging when folder is missing
-                LOG_DEBUG("No configurations found in %s", m_configDir.c_str());
+                MojLogDebug(m_log, "No configurations found in %s", m_configDir.c_str());
 			m_emptyConfigurator = true;
 		} else {
 			m_emptyConfigurator = false;
@@ -342,11 +335,11 @@ bool Configurator::Run()
 	if (m_configs.empty()) {
 		if (m_pendingConfigs.empty() && !m_completed) {
 			if (!m_emptyConfigurator) {
-				LOG_DEBUG("%s :: No more configurations", ConfiguratorName());
+				MojLogDebug(m_log, "%s :: No more configurations", ConfiguratorName());
 			}
 			Complete();
 		} else {
-			LOG_DEBUG("%s :: %d configurations pending, m_completed = %d", ConfiguratorName(), m_pendingConfigs.size(), m_completed);
+			MojLogDebug(m_log, "%s :: %d configurations pending, m_completed = %d", ConfiguratorName(), m_pendingConfigs.size(), m_completed);
 		}
 		// nothing to do - already sent out all the requests
 		// just waiting for responses from services
@@ -358,7 +351,7 @@ bool Configurator::Run()
 	m_pendingConfigs.push_back(filePath);
 	string config = ReadFile(filePath);
 
-	LOG_DEBUG("%s :: Configuring '%s'", ConfiguratorName(), filePath.c_str());
+	MojLogDebug(m_log, "%s :: Configuring '%s'", ConfiguratorName(), filePath.c_str());
 
 	// process it
 	MojErr err = MojErrNone;
@@ -375,16 +368,13 @@ bool Configurator::Run()
 	if (err) {
 		if (MojErrInProgress == err) {
 			m_configureOk.push_back(config);
-			LOG_DEBUG("Skipping config file: %s", filePath.c_str());
+			MojLogDebug(m_log, "Skipping config file: %s", filePath.c_str());
 		}
 		else
 		{
 			MojString errorMsg;
 			MojErrToString(err, errorMsg);
-			LOG_ERROR(MSGID_CONFIGURATOR_ERROR, 2,
-					PMLOGKS("config", config.c_str()),
-					PMLOGKS("error", errorMsg.data()),
-					"Failed to process config: %s (error: %s)", config.c_str(), errorMsg.data());
+			MojLogError(m_log, "Failed to process config: %s (error: %s)", config.c_str(), errorMsg.data());
 	
 			// Skip this file and keep going!
 			m_configureFailed.push_back(filePath);
@@ -416,21 +406,18 @@ MojErr Configurator::ProcessConfigRemoval(const std::string &filePath, const std
 // returns whether folder exists or not
 bool Configurator::GetConfigFiles(const string& parent, const string& directory)
 {
-	LOG_TRACE("Entering function %s", __FUNCTION__);
+	MojLogTrace(m_log);
 
 	DIR* dp = NULL;
 	struct dirent* dirp = NULL;
 	struct stat stat_buf;
 
 	if((dp  = opendir(directory.c_str())) == NULL) {
-		LOG_WARNING(MSGID_CONFIGURATOR_WARNING, 2,
-				PMLOGKS("directory", directory.c_str()),
-				PMLOGKS("parent", parent.c_str()),
-				"Failed to open directory: %s, under %s", directory.c_str(), parent.c_str());
+        MojLogWarning(m_log, "Failed to open directory: %s, under %s", directory.c_str(), parent.c_str());
         return false;
 	}
 
-    LOG_DEBUG("Reading config files in '%s' under '%s'", directory.c_str(), parent.c_str());
+    MojLogDebug(m_log, "Reading config files in '%s' under '%s'", directory.c_str(), parent.c_str());
 
     while ((dirp = readdir(dp)) != NULL) {
 		string filename = dirp->d_name;
@@ -447,15 +434,15 @@ bool Configurator::GetConfigFiles(const string& parent, const string& directory)
 
 					// Check if the config file has already been processed
 					if (!(m_currentType == Configure && IsAlreadyConfigured(filePath))) {
-						LOG_DEBUG("Found configuration '%s'", filePath.c_str());
+						MojLogDebug(m_log, "Found configuration '%s'", filePath.c_str());
 						m_configs.push_back(filePath);
 					} else {
-						LOG_DEBUG("Skipping configuration '%s' because it has already run (cache stamp in %s exists)", filePath.c_str(), kConfCacheDir);
+						MojLogDebug(m_log, "Skipping configuration '%s' because it has already run (cache stamp in %s exists)", filePath.c_str(), kConfCacheDir);
 					}
 				}
 			}
 			else {
-				LOG_ERROR(MSGID_CONFIGURATOR_ERROR, 0, "Failed to get file information on: %s", filename.c_str());
+				MojLogError(m_log, "Failed to get file information on: %s", filename.c_str());
 				break;
 			}
 		}
@@ -466,7 +453,7 @@ bool Configurator::GetConfigFiles(const string& parent, const string& directory)
 
 const string Configurator::ReadFile(const string& filePath)
 {
-	LOG_TRACE("Entering function %s", __FUNCTION__);
+	MojLogTrace(m_log);
 
 	string contents;
 	ifstream file;
@@ -497,17 +484,15 @@ void Configurator::Complete()
 
 MojErr Configurator::BusResponseAsync(const std::string& config, MojObject& response, MojErr err, bool *cacheConfigured)
 {
-	LOG_TRACE("Entering function %s", __FUNCTION__);
+	MojLogTrace(m_log);
 
 	try {
 		// remove the config from the list
 		ConfigCollection::iterator i = find(m_pendingConfigs.begin(), m_pendingConfigs.end(), config);
 		if (i == m_pendingConfigs.end()) {
-			LOG_WARNING(MSGID_CONFIGURATOR_WARNING, 1,
-					PMLOGKS("for", config.c_str()),
-					"Response for %s but not in pending list", config.c_str());
+			MojLogWarning(m_log, "Response for %s but not in pending list", config.c_str());
 		} else {
-			LOG_DEBUG("Response for %s - removing from pending list", config.c_str());
+			MojLogDebug(m_log, "Response for %s - removing from pending list", config.c_str());
 			m_pendingConfigs.erase(i);
 		}
 
@@ -519,11 +504,7 @@ MojErr Configurator::BusResponseAsync(const std::string& config, MojObject& resp
 
 			MojString json;
 			MojErrCheck(response.toJson(json));
-			LOG_ERROR(MSGID_CONFIGURATOR_ERROR, 3,
-					PMLOGKS("config", config.c_str()),
-					PMLOGKS("json", json.data()),
-					PMLOGKS("error", err),
-					"%s: %s (MojErr: %i)", config.c_str(), json.data(), err);
+			MojLogError(m_log, "%s: %s (MojErr: %i)", config.c_str(), json.data(), err);
 		} else {
 			m_configureOk.push_back(config);
 
